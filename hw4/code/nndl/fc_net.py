@@ -130,6 +130,8 @@ class TwoLayerNet(object):
     
     grads['W2'] += self.reg * self.params['W2'] # d(0.5 * reg * (W1**2 + W2**2)) / d(W2) = reg * W2
     grads['W1'] += self.reg * self.params['W1'] # d(0.5 * reg * (W1**2 + W2**2)) / d(W1) = reg * W1
+    
+    
 
     # ================================================================ #
     # END YOUR CODE HERE
@@ -198,6 +200,11 @@ class FullyConnectedNet(object):
         digit = str(i+1)
         self.params['W' + digit] = np.random.normal(0, weight_scale, (dims[i], dims[i+1]))
         self.params['b' + digit] = np.zeros(dims[i+1])
+        if self.use_batchnorm:
+            if i + 1 == self.num_layers:
+                break
+            self.params['gamma' + digit] = np.ones(dims[i+1])
+            self.params['beta' + digit] = np.zeros(dims[i+1])
 
     # ================================================================ #
     # END YOUR CODE HERE
@@ -250,18 +257,30 @@ class FullyConnectedNet(object):
     #   Implement the forward pass of the FC net and store the output
     #   scores as the variable "scores".
     # ================================================================ #
-
-    # cache: (x, w, b)
-    caches = {} # dictionary from layer number to cache objects
+    
+    affine_caches = {}
+    relu_caches = {}
+    batchnorm_caches = {}
+    dropout_caches = {}
     
     x = X
     for i in range(self.num_layers - 1):       
         digit = str(i+1)
-        x, caches[digit] = affine_relu_forward(x=x, w=self.params['W' + digit], b=self.params['b' + digit])
+        
+        x, affine_caches[digit] = affine_forward(x=x, w=self.params['W' + digit], b=self.params['b' + digit])
+        # x, caches[digit] = affine_relu_forward(x=x, w=self.params['W' + digit], b=self.params['b' + digit])
+        
+        if self.use_batchnorm:
+            x, batchnorm_caches[digit] = batchnorm_forward(x=x, gamma=self.params['gamma' + digit], beta=self.params['beta' + digit], bn_param=self.bn_params[i])
+            
+        x, relu_caches[digit] = relu_forward(x=x)
+        
+        if self.use_dropout:
+            x, dropout_caches[digit] = dropout_forward(x, self.dropout_param)
         
     # Last layer do affine_forward
     digit = str(self.num_layers)
-    scores, caches[digit] = affine_forward(x=x, w=self.params['W' + digit], b=self.params['b' + digit])
+    scores, affine_caches[digit] = affine_forward(x=x, w=self.params['W' + digit], b=self.params['b' + digit])
 
     # ================================================================ #
     # END YOUR CODE HERE
@@ -287,13 +306,25 @@ class FullyConnectedNet(object):
     
     # First step back do affine_backward: scores, caches[digit]
     digit = str(self.num_layers)
-    dx, grads['W' + digit], grads['b' + digit] = affine_backward(dL, caches[digit])
+    dx, grads['W' + digit], grads['b' + digit] = affine_backward(dL, affine_caches[digit])
     grads['W' + digit] += self.reg * self.params['W' + digit]
     
     for i in reversed(range(self.num_layers - 1)):
         digit = str(i+1)
-        dx, grads['W' + digit], grads['b' + digit] = affine_relu_backward(dx, caches[digit])
+        
+        if self.use_dropout:
+            dx = dropout_backward(dx, dropout_caches[digit])
+       
+        dx = relu_backward(dx, relu_caches[digit])
+        # dx, grads['W' + digit], grads['b' + digit] = affine_relu_backward(dx, caches[digit])
+        
+        if self.use_batchnorm:
+            dx, grads['gamma' + digit], grads['beta' + digit] = batchnorm_backward(dx, batchnorm_caches[digit])
+        
+        dx, grads['W' + digit], grads['b' + digit] = affine_backward(dx, affine_caches[digit])
+            
         grads['W' + digit] += self.reg * self.params['W' + digit]
+            
 
     # ================================================================ #
     # END YOUR CODE HERE

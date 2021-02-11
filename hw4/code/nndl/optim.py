@@ -76,8 +76,9 @@ def sgd_momentum(w, dw, config=None):
   #   as next_w, and the updated velocity as v.
   # ================================================================ #
 
-  print('w:', w)
-  print('dw', dw)
+  # v <- alpha*v - epsilon*g
+  v = (config['momentum'] * v) - (config['learning_rate'] * dw)
+  next_w = w + v
 
   # ================================================================ #
   # END YOUR CODE HERE
@@ -108,6 +109,12 @@ def sgd_nesterov_momentum(w, dw, config=None):
   #   Implement the momentum update formula.  Return the updated weights
   #   as next_w, and the updated velocity as v.
   # ================================================================ #
+
+  # v_new <- alpha*v_old - epsilon*g
+  # theta = theta + v_new + alpha*(v_new - v_old)
+  v_old = v
+  v = config['momentum']*v_old - config['learning_rate']*dw
+  next_w = w + v + config['momentum']*(v - v_old)
 
   # ================================================================ #
   # END YOUR CODE HERE
@@ -144,6 +151,9 @@ def rmsprop(w, dw, config=None):
   #   moment gradients, so they can be used for future gradients. Concretely,
   #   config['a'] corresponds to "a" in the lecture notes.
   # ================================================================ #
+  
+  config['a'] = config['decay_rate'] * config['a'] + (1-config['decay_rate']) * np.multiply(dw, dw)
+  next_w = w - np.multiply(config['learning_rate'] / (np.sqrt(config['a'] + config['epsilon'])), dw)
 
   # ================================================================ #
   # END YOUR CODE HERE
@@ -184,6 +194,15 @@ def adam(w, dw, config=None):
   #   moment gradients, and in config['v'] the moving average of the
   #   first moments.  Finally, store in config['t'] the increasing time.
   # ================================================================ #
+    
+  config['t'] += 1
+  config['v'] = config['beta1'] * config['v'] + (1 - config['beta1']) * dw
+  config['a'] = config['beta2'] * config['a'] + (1 - config['beta2']) * np.multiply(dw, dw)
+  
+  v_correct = config['v'] / (1 - config['beta1']**config['t'])
+  a_correct = config['a'] / (1 - config['beta2']**config['t'])
+    
+  next_w = w - np.multiply((config['learning_rate'] / (np.sqrt(a_correct) + config['epsilon'])), v_correct)
 
   # ================================================================ #
   # END YOUR CODE HERE

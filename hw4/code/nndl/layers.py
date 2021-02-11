@@ -77,11 +77,6 @@ def affine_backward(dout, cache):
   #   db should be M; it is just the sum over dout examples
   # ================================================================ #
 
-  # dout is N x M
-  # dx should be N x d1 x ... x dk; it relates to dout through multiplication with w, which is D x M
-  # dw should be D x M; it relates to dout through multiplication with x, which is N x D after reshaping
-  # db should be M; it is just the sum over dout examples
-
   N = dout.shape[0] # 10 , also equal to x.shape[0]
   M = dout.shape[1] # 5
   D = np.prod(x.shape[1:]) # 6
@@ -211,9 +206,18 @@ def batchnorm_forward(x, gamma, beta, bn_param):
     #     (4) Store any variables you may need for the backward pass in
     #         the 'cache' variable.
     # ================================================================ #
-
-    pass
-
+    
+    sample_mean = np.mean(x, axis=0)
+    sample_var = np.mean(np.square(x - sample_mean), axis=0)
+                 
+    running_mean = momentum * running_mean + (1 - momentum) * sample_mean
+    running_var = momentum * running_var + (1 - momentum) * sample_var
+    
+    x_hat = (x-sample_mean) / np.sqrt(sample_var+eps)
+    out = gamma * x_hat + beta
+    
+    cache = (x_hat, x, gamma, eps, sample_mean, sample_var)
+    
     # ================================================================ #
     # END YOUR CODE HERE
     # ================================================================ #
@@ -227,7 +231,9 @@ def batchnorm_forward(x, gamma, beta, bn_param):
     #   Store the output as 'out'.
     # ================================================================ #
 
-    pass
+    x_hat = (x - running_mean) / np.sqrt(running_var + eps)
+    out = gamma * x_hat + beta
+
     # ================================================================ #
     # END YOUR CODE HERE
     # ================================================================ #
@@ -264,6 +270,24 @@ def batchnorm_backward(dout, cache):
   # YOUR CODE HERE:
   #   Implement the batchnorm backward pass, calculating dx, dgamma, and dbeta.
   # ================================================================ #
+    
+  N = dout.shape[0]
+  x_hat, x, gamma, eps, mean, var = cache
+  sqrt_var_plus_eps_inv = 1 / np.sqrt(var+eps)
+  x_minus_mean = x - mean
+
+  dgamma = np.sum(np.multiply(dout, x_hat), axis=0) 
+  dbeta = np.sum(dout, axis=0)
+    
+  # dx = dl_da + ((2*(x - mean)/N) * dl_dvar) + ((1/N) * dl_dmean)
+  dl_dxhat = dout * gamma
+  dl_da = sqrt_var_plus_eps_inv * dl_dxhat
+  dl_de = (1/2) * sqrt_var_plus_eps_inv * -(sqrt_var_plus_eps_inv ** 2) * x_minus_mean * dl_dxhat
+  dl_dvar = np.sum(dl_de, axis=0)
+
+  dl_dmean = -sqrt_var_plus_eps_inv * np.sum(dl_dxhat, axis=0) - dl_dvar * (2/N) * np.sum(x_minus_mean, axis=0)
+  
+  dx = dl_da + (2* x_minus_mean / N) * dl_dvar + (dl_dmean/N)
 
   # ================================================================ #
   # END YOUR CODE HERE
@@ -304,7 +328,10 @@ def dropout_forward(x, dropout_param):
     #   Store the masked and scaled activations in out, and store the 
     #   dropout mask as the variable mask.
     # ================================================================ #
-    pass
+    
+    mask = (np.random.rand(x.shape[0], x.shape[1]) < p) / p
+    out = np.multiply(x, mask)
+    
     # ================================================================ #
     # END YOUR CODE HERE
     # ================================================================ #
@@ -315,7 +342,9 @@ def dropout_forward(x, dropout_param):
     # YOUR CODE HERE:
     #   Implement the inverted dropout forward pass during test time.
     # ================================================================ #
-    pass
+    
+    out = x
+    
     # ================================================================ #
     # END YOUR CODE HERE
     # ================================================================ #
@@ -342,7 +371,9 @@ def dropout_backward(dout, cache):
     # YOUR CODE HERE:
     #   Implement the inverted dropout backward pass during training time.
     # ================================================================ #
-    pass
+    
+    dx = np.multiply(dout, mask)
+
     # ================================================================ #
     # END YOUR CODE HERE
     # ================================================================ #
@@ -351,7 +382,9 @@ def dropout_backward(dout, cache):
     # YOUR CODE HERE:
     #   Implement the inverted dropout backward pass during test time.
     # ================================================================ #
-    pass
+    
+    dx = dout
+    
     # ================================================================ #
     # END YOUR CODE HERE
     # ================================================================ #
